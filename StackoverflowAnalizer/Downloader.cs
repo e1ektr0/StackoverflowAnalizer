@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
 
@@ -12,9 +11,14 @@ namespace StackoverflowAnalizer
         private readonly ConcurrentQueue<string> _urls = new ConcurrentQueue<string>();
         private readonly Dictionary<string, string> _results = new Dictionary<string, string>();
         private readonly Dictionary<string, Exception> _errors = new Dictionary<string, Exception>();
-        private int _treadCount = 2;
+        private int _treadCount;
 
-        public async Task AddToQueue(string url)
+        public Downloader(int treadCount = 1)
+        {
+            _treadCount = treadCount;
+        }
+
+        public async Task Enqueue(string url)
         {
             var startingThread = 0;
             _urls.Enqueue(url);
@@ -34,7 +38,7 @@ namespace StackoverflowAnalizer
             string url;
             if (_urls.TryDequeue(out url))
             {
-                await await Download(url).ContinueWith(task => StartDownloadTread());
+                await Download(url).ContinueWith(task => StartDownloadTread().Wait());
             }
         }
 
@@ -51,9 +55,20 @@ namespace StackoverflowAnalizer
             }
         }
 
-        public Dictionary<string, string> GetResult()
+        public string DequeueResult(string url)
         {
-            return _results.ToDictionary(n => n.Key, n => n.Value);
+            if (_errors.ContainsKey(url))
+            {
+                _errors.Remove(url);
+                throw _errors[url];
+            }
+
+            if (!_results.ContainsKey(url)) 
+                throw new Exception();
+            
+            var result = _results[url];
+            _results.Remove(url);
+            return result;
         }
     }
 }
